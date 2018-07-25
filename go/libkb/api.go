@@ -21,6 +21,7 @@ import (
 	"golang.org/x/net/context/ctxhttp"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/davecgh/go-spew/spew"
 	jsonw "github.com/keybase/go-jsonw"
 )
 
@@ -244,12 +245,28 @@ func getNIST(m MetaContext, sessType APISessionType) *NIST {
 // needed. This finisher is always non-nil (and just a noop in some cases),
 // so therefore it's fine to call it without checking for nil-ness.
 func doRequestShared(m MetaContext, api Requester, arg APIArg, req *http.Request, wantJSONRes bool) (_ *http.Response, finisher func(), jw *jsonw.Wrapper, err error) {
+	m = m.EnsureCtx().WithLogTag("API")
+	defer m.CTraceTimed("api.doRequestShared", func() error { return err })()
+	m, tbs := m.WithTimeBuckets()
+	defer tbs.Record("API.request")()
+
 	if !m.G().Env.GetTorMode().UseSession() && arg.SessionType == APISessionTypeREQUIRED {
 		err = TorSessionRequiredError{}
 		return
 	}
 
-	m = m.EnsureCtx().WithLogTag("API")
+	// xxx remove this
+	// 2018-07-26T17:11:23.361444-04:00 ▶ [DEBU keybase api.go:280] da12 - API GET https://api-0.core.keybaseapi.com/_/api/1.0/user/lookup.json?fields=basics&load_deleted_v2=1&multi=1&username=lisabethdonley: err=ok, status="200 OK", jsonwBytes=311 [tags:API=iwvV14444v3N]
+	if strings.Contains(arg.Endpoint, "user/lookup") {
+		tags, ok := LogTagsFromContext(m.Ctx())
+		if !ok {
+			panic("no tags")
+		}
+		if len(tags) <= 1 {
+			m.CDebugf("%v", spew.Sdump(tags))
+			panic("not enough tags")
+		}
+	}
 
 	finisher = noopFinisher
 
@@ -699,6 +716,7 @@ func (a *InternalAPIEngine) GetResp(arg APIArg) (*http.Response, func(), error) 
 // JSON into the value pointed to by v.
 func (a *InternalAPIEngine) GetDecode(arg APIArg, v APIResponseWrapper) error {
 	m := arg.GetMetaContext(a.G())
+	m = m.EnsureCtx().WithLogTag("API")
 	return a.getDecode(m, arg, v)
 }
 
@@ -770,6 +788,7 @@ func (a *InternalAPIEngine) postResp(m MetaContext, arg APIArg) (*http.Response,
 
 func (a *InternalAPIEngine) PostDecode(arg APIArg, v APIResponseWrapper) error {
 	m := arg.GetMetaContext(a.G())
+	m = m.EnsureCtx().WithLogTag("API")
 	return a.postDecode(m, arg, v)
 }
 
@@ -816,7 +835,6 @@ func (a *InternalAPIEngine) DoRequest(arg APIArg, req *http.Request) (*APIRes, e
 
 func (a *InternalAPIEngine) doRequest(m MetaContext, arg APIArg, req *http.Request) (res *APIRes, err error) {
 	m = m.EnsureCtx().WithLogTag("API")
-	defer a.G().CTraceTimed(m.Ctx(), "InternalAPIEngine#doRequest", func() error { return err })()
 	resp, finisher, jw, err := doRequestShared(m, a, arg, req, true)
 	if err != nil {
 		return nil, err

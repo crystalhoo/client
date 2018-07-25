@@ -22,6 +22,7 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/keybase/client/go/chat/globals"
 	"github.com/keybase/client/go/chat/signencrypt"
 	"github.com/keybase/client/go/chat/storage"
@@ -1183,6 +1184,19 @@ func (b *Boxer) UnboxMessages(ctx context.Context, boxed []chat1.MessageBoxed, c
 
 	boxCh := make(chan chat1.MessageBoxed)
 	eg, ctx := errgroup.WithContext(BackgroundContext(ctx, b.G()))
+
+	// xxx remove this
+	{
+		tags, ok := libkb.LogTagsFromContext(ctx)
+		if !ok {
+			panic("no tags")
+		}
+		if len(tags) <= 0 {
+			b.Debug(ctx, "%v", spew.Sdump(tags))
+			panic("not enough tags")
+		}
+	}
+
 	eg.Go(func() error {
 		defer close(boxCh)
 		for _, msg := range boxed {
