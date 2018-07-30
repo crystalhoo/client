@@ -315,7 +315,7 @@ func (u *Uploader) upload(ctx context.Context, uid gregor1.UID, convID chat1.Con
 			preview, err := u.store.UploadAsset(bgctx, &task)
 			if err == nil {
 				ures.Preview = &preview
-				ures.Preview.MimeType = pre.ContentType
+				ures.Preview.MimeType = pre.PreviewContentType
 				ures.Preview.Metadata = pre.PreviewMetadata()
 				ures.Preview.Tag = chat1.AssetTag_PRIMARY
 			} else {
